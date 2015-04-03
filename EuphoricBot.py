@@ -27,15 +27,25 @@ def send_message(ws, message, parent=None):
 	global mid
 	message = {"type":"send","data":{"content":message,"parent":parent},"id":str(mid)}
 	message = json.dumps(message)
+	print("Ping: {}".format(message))
 	ws.send(message)
 	mid += 1
 
 def add_nick(uid, nick):
 	global users
 	if uid not in users:
-		users[uid] = [nick]
+		if nick == '':
+			print('Anonymous user in room!')
+		else:
+			print("Nick created: {}".format(nick))
+			users[uid] = [nick]
 	else:
-		users[uid].append(nick)
+		# don't index re-connects
+		if nick != users[uid][-1]:
+			print("Nick change: {} -> {}".format(users[uid][-1], nick))
+			users[uid].append(nick)
+		else:
+			print('{} reconnected!'.format(nick))
 
 def build_lineage_string(users):
 	lineage_strings = []
@@ -72,6 +82,15 @@ while True:
 				if len(matching_users) > 0:
 					send_message(ws, build_lineage_string(matching_users), parent)
 
+	if data['type'] == 'part-event':
+		user_id = data['data']['id'].split('-')[0]
+		user_name = data['data']['name']
+		if user_id in users:
+			del users[user_id]
+			print('user left: {}'.format(user_name))
+
+	if data['type'] == 'join-event':
+		print('new Anonymous user joined.')
 
 	if data['type'] == 'nick-event':
 		user_id = data['data']['id'].split('-')[0]
