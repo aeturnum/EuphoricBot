@@ -1,4 +1,4 @@
-from websocket import create_connection
+from websocket import create_connection, WebSocketConnectionClosedException
 import json
 from time import time
 import sys
@@ -11,25 +11,36 @@ if __name__ == "__main__":
 			sys.exit(1)
 		room_name = sys.argv[1]
 
-ws = create_connection('wss://euphoria.io/room/{}/ws'.format(room_name))
+web_socket_url = 'wss://euphoria.io/room/{}/ws'.format(room_name)
+
+ws = create_connection(web_socket_url)
 mid = 0
 
 users = {}
 anonymous_users = set()
 
-def send_ping(ws):
+def send(message):
+	global ws
+	try:
+		ws.send(message)
+	except WebSocketConnectionClosedException:
+		ws = create_connection(web_socket_url)
+		ws.send(message)
+
+def send_ping():
+	global ws
 	global mid
 	reply = {"type":"ping-reply","data":{"time":int(time())},"id":str(mid)}
 	reply = json.dumps(reply)
-	ws.send(reply)
+	send(reply)
 	mid += 1
 
-def send_message(ws, message, parent=None):
+def send_message(message, parent=None):
 	global mid
+	global ws
 	message = {"type":"send","data":{"content":message,"parent":parent},"id":str(mid)}
 	message = json.dumps(message)
-	print("Ping: {}".format(message))
-	ws.send(message)
+	send(message)
 	mid += 1
 
 def add_nick(uid, nick):
@@ -63,11 +74,15 @@ def build_lineage_string(users):
 	return '\n'.join(lineage_strings)
 
 while True:
-	data = ws.recv()
+	try:
+		data = ws.recv()
+	except WebSocketConnectionClosedException:
+		ws = create_connection(web_socket_url)
+		data = ws.recv()
 	
 	data = json.loads(data)
 	if data['type'] == 'ping-event':
-		send_ping(ws)
+		send_ping()
 
 	if data['type'] == 'send-event':
 		content = data['data']['content']
@@ -76,7 +91,7 @@ while True:
 		if content[0] == '!':
 			if content[1:5] == 'echo':
 				message = content[5:].strip()
-				send_message(ws, message, parent)
+				send_message(message, parent)
 
 			if content[1:8] == 'lineage':
 				name = content[8:].strip()
@@ -88,9 +103,10 @@ while True:
 						matching_users.append(user)
 
 				if len(matching_users) > 0:
-					send_message(ws, build_lineage_string(matching_users), parent)
+					send_message(build_lineage_string(matching_users), parent)
 
-			if content[1:9] == 'watchers'
+			if content[1:9] == 'watchers':
+				send_message('~{} anonymous users watching room.'.format(len(anonymous_users)))
 
 	if data['type'] == 'part-event':
 		user_id = data['data']['id'].split('-')[0]
