@@ -15,6 +15,7 @@ ws = create_connection('wss://euphoria.io/room/{}/ws'.format(room_name))
 mid = 0
 
 users = {}
+anonymous_users = set()
 
 def send_ping(ws):
 	global mid
@@ -33,11 +34,17 @@ def send_message(ws, message, parent=None):
 
 def add_nick(uid, nick):
 	global users
+	global anonymous_users
 	if uid not in users:
 		if nick == '':
 			print('Anonymous user in room!')
+			anonymous_users.add(uid)
 		else:
-			print("Nick created: {}".format(nick))
+			if uid not in anonymous_users:
+				print("Nick created: {}".format(nick))
+			else:
+				print("Anonymous -> {}".format(nick))
+				anonymous_users.remove(uid)
 			users[uid] = [nick]
 	else:
 		# don't index re-connects
@@ -70,6 +77,7 @@ while True:
 			if content[1:5] == 'echo':
 				message = content[5:].strip()
 				send_message(ws, message, parent)
+
 			if content[1:8] == 'lineage':
 				name = content[8:].strip()
 
@@ -82,15 +90,21 @@ while True:
 				if len(matching_users) > 0:
 					send_message(ws, build_lineage_string(matching_users), parent)
 
+			if content[1:9] == 'watchers'
+
 	if data['type'] == 'part-event':
 		user_id = data['data']['id'].split('-')[0]
 		user_name = data['data']['name']
 		if user_id in users:
-			del users[user_id]
 			print('user left: {}'.format(user_name))
+		else:
+			if user_id in anonymous_users:
+				anonymous_users.remove(user_id)
 
 	if data['type'] == 'join-event':
+		user_id = data['data']['id'].split('-')[0]
 		print('new Anonymous user joined.')
+		anonymous_users.add(user_id)
 
 	if data['type'] == 'nick-event':
 		user_id = data['data']['id'].split('-')[0]
