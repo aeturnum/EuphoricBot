@@ -94,19 +94,29 @@ while True:
 				send_message(message, parent)
 
 			if content[1:8] == 'lineage':
-				name = content[8:].strip()
+				name = content[8:].strip().lower()
 
 				matching_users = []
+				if name[0] == '@':
+					#print('removing @ in front of {}'.format(name))
+					name = name[1:]
 				for _, user in users.items():
 					current_name = user[-1].lower()
-					if current_name.find(name.lower()) >= 0:
+					#print('checking "{}" against "{}"'.format(current_name, name.lower()))
+					current_name_no_whitespace = ''.join(current_name.split())
+					name_no_whitespace = ''.join(name.split())
+					if current_name.find(name) >= 0 \
+						or current_name.find(name_no_whitespace) >= 0 \
+						or current_name_no_whitespace.find(name) >= 0 \
+						or current_name_no_whitespace.find(name_no_whitespace) >= 0:
+						#print("match!")
 						matching_users.append(user)
 
 				if len(matching_users) > 0:
 					send_message(build_lineage_string(matching_users), parent)
 
 			if content[1:9] == 'watchers':
-				send_message('~{} anonymous users watching room.'.format(len(anonymous_users)))
+				send_message('~{} anonymous users watching room.'.format(len(anonymous_users)), parent)
 
 	if data['type'] == 'part-event':
 		user_id = data['data']['id'].split('-')[0]
